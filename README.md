@@ -40,6 +40,7 @@ Key packages:
 - `pandas` - Data manipulation and analysis
 - `pyarrow` - Efficient data serialization
 - `tqdm` - Progress bars for long operations
+- `torch` - Building and training machine learning models
 
 ## Dataset Inspection
 
