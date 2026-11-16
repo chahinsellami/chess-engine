@@ -1,24 +1,25 @@
 
 import os
-import chess
+import json
 import numpy as np
-import pandas as pd
+import chess
+import pyarrow.parquet as pq
 
 from tqdm import tqdm
 
-# ==========================================
-# CONFIGURATION
-# ==========================================
 
-INPUT_FILE = "data/positions_1000.parquet"
-OUTPUT_FILE = "data/chess_training_data.npz"
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+INPUT_FILE = "data/positions_1m.parquet"
+OUTPUT_FILE = "data/chess_training_data_1m.npz"
+REPORT_FILE = "data/preparation_1m_report.json"
 
 RANDOM_SEED = 42
+BATCH_SIZE = 10_000
 
-# 12 piece planes + 1 turn + 4 castling + 1 en passant
 INPUT_CHANNELS = 18
-
-# 4096 normal moves + 4 promotion types per square pair
 NUM_ACTIONS = 5 * 64 * 64
 
 PIECE_CHANNELS = {
@@ -28,7 +29,6 @@ PIECE_CHANNELS = {
     (chess.WHITE, chess.ROOK): 3,
     (chess.WHITE, chess.QUEEN): 4,
     (chess.WHITE, chess.KING): 5,
-
     (chess.BLACK, chess.PAWN): 6,
     (chess.BLACK, chess.KNIGHT): 7,
     (chess.BLACK, chess.BISHOP): 8,
@@ -46,19 +46,17 @@ PROMOTION_MAP = {
 }
 
 
-# ==========================================
+# ============================================================
 # BOARD ENCODING
-# ==========================================
-
+# ============================================================
 
 def encode_board(board):
 
     tensor = np.zeros(
-        (18, 8, 8),
+        (INPUT_CHANNELS, 8, 8),
         dtype=np.uint8
     )
 
-    # 12 piece channels
     for square, piece in board.piece_map().items():
 
         channel = PIECE_CHANNELS[
@@ -70,24 +68,23 @@ def encode_board(board):
 
         tensor[channel, rank, file] = 1
 
-    # Channel 12: Side to move
+    # White to move
     if board.turn == chess.WHITE:
         tensor[12, :, :] = 1
 
-    # Channels 13-16: Castling rights
-    castling_rights = [
+    # Castling rights
+    rights = [
         board.has_kingside_castling_rights(chess.WHITE),
         board.has_queenside_castling_rights(chess.WHITE),
         board.has_kingside_castling_rights(chess.BLACK),
         board.has_queenside_castling_rights(chess.BLACK)
     ]
 
-    for i, available in enumerate(castling_rights):
-
+    for i, available in enumerate(rights):
         if available:
             tensor[13 + i, :, :] = 1
 
-    # Channel 17: En passant square
+    # En passant
     if board.ep_square is not None:
 
         rank = chess.square_rank(board.ep_square)
@@ -98,10 +95,9 @@ def encode_board(board):
     return tensor
 
 
-
-# ==========================================
+# ============================================================
 # MOVE ENCODING
-# ==========================================
+# ============================================================
 
 def encode_move(move):
 
@@ -114,98 +110,205 @@ def encode_move(move):
     )
 
 
-# ==========================================
-# LOAD DATASET
-# ==========================================
+# ============================================================
+# INITIALIZATION
+# ============================================================
 
-print("Loading generated dataset...")
+print("=" * 60)
+print("PREPARING 1 MILLION CHESS POSITIONS")
+print("=" * 60)
 
-df = pd.read_parquet(INPUT_FILE)
+if not os.path.exists(INPUT_FILE):
+    raise FileNotFoundError(INPUT_FILE)
 
-print("Rows loaded:", len(df))
-print("Games loaded:", df["game_id"].nunique())
+if os.path.exists(OUTPUT_FILE):
+    raise FileExistsError(
+        f"{OUTPUT_FILE} already exists. "
+        "Rename it before generating a new dataset."
+    )
 
+parquet = pq.ParquetFile(INPUT_FILE)
 
-# ==========================================
-# VALIDATE AND ENCODE
-# ==========================================
+total_rows = parquet.metadata.num_rows
 
-X = []
-y = []
-game_ids = []
-
-invalid_positions = 0
-
-print("\nValidating and encoding positions...")
-
-for row in tqdm(df.itertuples(index=False), total=len(df)):
-
-    try:
-
-        board = chess.Board(row.fen)
-
-        if not board.is_valid():
-            invalid_positions += 1
-            continue
-
-        move = chess.Move.from_uci(row.move_uci)
-
-        if move not in board.legal_moves:
-            invalid_positions += 1
-            continue
-
-        encoded_board = encode_board(board)
-        encoded_move = encode_move(move)
-
-        X.append(encoded_board)
-        y.append(encoded_move)
-        game_ids.append(row.game_id)
-
-    except Exception:
-        invalid_positions += 1
+print("Total Parquet rows:", f"{total_rows:,}")
 
 
-X = np.asarray(X, dtype=np.uint8)
-y = np.asarray(y, dtype=np.int64)
-game_ids = np.asarray(game_ids)
+# ============================================================
+# SPLIT COMPLETE GAMES
+# ============================================================
 
+print("\nReading game IDs...")
 
-# ==========================================
-# SPLIT BY GAME
-# ==========================================
+game_table = pq.read_table(
+    INPUT_FILE,
+    columns=["game_id"]
+)
 
-print("\nSplitting dataset...")
+all_game_ids = game_table.column("game_id").to_numpy()
 
-unique_games = np.unique(game_ids)
+unique_games, positions_per_game = np.unique(
+    all_game_ids,
+    return_counts=True
+)
+
+del game_table
+del all_game_ids
 
 rng = np.random.default_rng(RANDOM_SEED)
-rng.shuffle(unique_games)
+shuffled_games = unique_games.copy()
+rng.shuffle(shuffled_games)
 
-n = len(unique_games)
+number_of_games = len(shuffled_games)
 
-train_end = int(n * 0.80)
-val_end = int(n * 0.90)
+train_end = int(number_of_games * 0.80)
+val_end = int(number_of_games * 0.90)
 
-train_games = unique_games[:train_end]
-val_games = unique_games[train_end:val_end]
-test_games = unique_games[val_end:]
+train_games = shuffled_games[:train_end]
+val_games = shuffled_games[train_end:val_end]
+test_games = shuffled_games[val_end:]
 
-train_mask = np.isin(game_ids, train_games)
-val_mask = np.isin(game_ids, val_games)
-test_mask = np.isin(game_ids, test_games)
+# Every game belongs to exactly one split.
+game_to_split = {}
 
-X_train, y_train = X[train_mask], y[train_mask]
-X_val, y_val = X[val_mask], y[val_mask]
-X_test, y_test = X[test_mask], y[test_mask]
+for game_id in train_games:
+    game_to_split[int(game_id)] = 0
+
+for game_id in val_games:
+    game_to_split[int(game_id)] = 1
+
+for game_id in test_games:
+    game_to_split[int(game_id)] = 2
 
 
-# ==========================================
-# SAVE
-# ==========================================
+# Calculate exact allocation sizes.
+game_position_counts = {
+    int(g): int(c)
+    for g, c in zip(unique_games, positions_per_game)
+}
 
-print("\nSaving training data...")
+split_sizes = [0, 0, 0]
 
-os.makedirs("data", exist_ok=True)
+for game_id in train_games:
+    split_sizes[0] += game_position_counts[int(game_id)]
+
+for game_id in val_games:
+    split_sizes[1] += game_position_counts[int(game_id)]
+
+for game_id in test_games:
+    split_sizes[2] += game_position_counts[int(game_id)]
+
+print("\nGame split:")
+print("Training games:", len(train_games))
+print("Validation games:", len(val_games))
+print("Testing games:", len(test_games))
+
+print("\nExpected position allocation:")
+print("Training:", f"{split_sizes[0]:,}")
+print("Validation:", f"{split_sizes[1]:,}")
+print("Testing:", f"{split_sizes[2]:,}")
+
+
+# ============================================================
+# PREALLOCATE ARRAYS
+# ============================================================
+
+print("\nAllocating memory...")
+
+X_train = np.empty(
+    (split_sizes[0], INPUT_CHANNELS, 8, 8),
+    dtype=np.uint8
+)
+y_train = np.empty(split_sizes[0], dtype=np.int64)
+
+X_val = np.empty(
+    (split_sizes[1], INPUT_CHANNELS, 8, 8),
+    dtype=np.uint8
+)
+y_val = np.empty(split_sizes[1], dtype=np.int64)
+
+X_test = np.empty(
+    (split_sizes[2], INPUT_CHANNELS, 8, 8),
+    dtype=np.uint8
+)
+y_test = np.empty(split_sizes[2], dtype=np.int64)
+
+X_arrays = [X_train, X_val, X_test]
+y_arrays = [y_train, y_val, y_test]
+
+pointers = [0, 0, 0]
+invalid_positions = [0, 0, 0]
+
+
+# ============================================================
+# BATCH PROCESSING
+# ============================================================
+
+print("\nEncoding positions...")
+
+batch_count = (total_rows + BATCH_SIZE - 1) // BATCH_SIZE
+
+batches = parquet.iter_batches(
+    batch_size=BATCH_SIZE,
+    columns=["game_id", "fen", "move_uci"]
+)
+
+for batch in tqdm(batches, total=batch_count):
+
+    ids = batch.column("game_id").to_numpy()
+    fens = batch.column("fen").to_pylist()
+    moves = batch.column("move_uci").to_pylist()
+
+    for game_id, fen, uci in zip(ids, fens, moves):
+
+        split = game_to_split[int(game_id)]
+
+        try:
+
+            board = chess.Board(fen)
+
+            if not board.is_valid():
+                invalid_positions[split] += 1
+                continue
+
+            move = chess.Move.from_uci(uci)
+
+            if move not in board.legal_moves:
+                invalid_positions[split] += 1
+                continue
+
+            X_arrays[split][pointers[split]] = encode_board(board)
+
+            y_arrays[split][pointers[split]] = encode_move(move)
+
+            pointers[split] += 1
+
+        except Exception:
+            invalid_positions[split] += 1
+
+
+# ============================================================
+# TRIM ARRAYS
+# ============================================================
+
+print("\nEncoding completed.")
+
+X_train = X_train[:pointers[0]]
+y_train = y_train[:pointers[0]]
+
+X_val = X_val[:pointers[1]]
+y_val = y_val[:pointers[1]]
+
+X_test = X_test[:pointers[2]]
+y_test = y_test[:pointers[2]]
+
+
+# ============================================================
+# SAVE DATASET
+# ============================================================
+
+print("\nSaving compressed NumPy dataset...")
+print("This can take a little while.")
 
 np.savez_compressed(
     OUTPUT_FILE,
@@ -218,24 +321,69 @@ np.savez_compressed(
 )
 
 
-# ==========================================
-# RESULTS
-# ==========================================
+# ============================================================
+# VERIFY GAME SPLIT
+# ============================================================
 
-print("\n========== PREPARATION RESULTS ==========")
+train_set = set(map(int, train_games))
+val_set = set(map(int, val_games))
+test_set = set(map(int, test_games))
 
-print("Valid positions:", len(X))
-print("Invalid positions:", invalid_positions)
+assert train_set.isdisjoint(val_set)
+assert train_set.isdisjoint(test_set)
+assert val_set.isdisjoint(test_set)
 
-print("\nTraining:", len(X_train))
-print("Validation:", len(X_val))
-print("Testing:", len(X_test))
+
+# ============================================================
+# REPORT
+# ============================================================
+
+report = {
+    "source": INPUT_FILE,
+    "output": OUTPUT_FILE,
+    "total_positions": total_rows,
+    "total_games": number_of_games,
+    "random_seed": RANDOM_SEED,
+    "split_method": "game-based",
+    "train_games": len(train_games),
+    "validation_games": len(val_games),
+    "test_games": len(test_games),
+    "train_positions": int(len(X_train)),
+    "validation_positions": int(len(X_val)),
+    "test_positions": int(len(X_test)),
+    "invalid_train": invalid_positions[0],
+    "invalid_validation": invalid_positions[1],
+    "invalid_test": invalid_positions[2],
+    "input_shape": list(X_train.shape[1:]),
+    "number_of_classes": NUM_ACTIONS
+}
+
+with open(REPORT_FILE, "w", encoding="utf-8") as file:
+    json.dump(report, file, indent=4)
+
+
+# ============================================================
+# FINAL OUTPUT
+# ============================================================
+
+print("\n" + "=" * 60)
+print("DATASET PREPARATION COMPLETE")
+print("=" * 60)
+
+print("Training:", f"{len(X_train):,}")
+print("Validation:", f"{len(X_val):,}")
+print("Testing:", f"{len(X_test):,}")
 
 print("\nInput shape:", X_train.shape)
 print("Output shape:", y_train.shape)
 
-print("Number of possible move classes:", NUM_ACTIONS)
+print("\nInvalid positions:", sum(invalid_positions))
 
-print("\nSaved:", OUTPUT_FILE)
+print("Possible move classes:", NUM_ACTIONS)
 
-print("\nPreparation completed successfully!")
+print("\nGame overlap check: PASSED")
+
+print("\nSaved dataset:", OUTPUT_FILE)
+print("Saved report:", REPORT_FILE)
+
+print("\nReady for neural network training!")
