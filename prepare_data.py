@@ -50,14 +50,15 @@ PROMOTION_MAP = {
 # BOARD ENCODING
 # ==========================================
 
+
 def encode_board(board):
 
     tensor = np.zeros(
-        (INPUT_CHANNELS, 8, 8),
+        (18, 8, 8),
         dtype=np.uint8
     )
 
-    # Piece positions
+    # 12 piece channels
     for square, piece in board.piece_map().items():
 
         channel = PIECE_CHANNELS[
@@ -69,26 +70,24 @@ def encode_board(board):
 
         tensor[channel, rank, file] = 1
 
-    # Side to move
+    # Channel 12: Side to move
     if board.turn == chess.WHITE:
         tensor[12, :, :] = 1
 
-    # Castling rights
-    castling = [
-        chess.WHITE_KINGSIDE,
-        chess.WHITE_QUEENSIDE,
-        chess.BLACK_KINGSIDE,
-        chess.BLACK_QUEENSIDE,
+    # Channels 13-16: Castling rights
+    castling_rights = [
+        board.has_kingside_castling_rights(chess.WHITE),
+        board.has_queenside_castling_rights(chess.WHITE),
+        board.has_kingside_castling_rights(chess.BLACK),
+        board.has_queenside_castling_rights(chess.BLACK)
     ]
 
-    for i, right in enumerate(castling):
+    for i, available in enumerate(castling_rights):
 
-        if board.has_castling_rights(
-            chess.WHITE if i < 2 else chess.BLACK
-        ) and board.castling_rights & right:
+        if available:
             tensor[13 + i, :, :] = 1
 
-    # En passant square
+    # Channel 17: En passant square
     if board.ep_square is not None:
 
         rank = chess.square_rank(board.ep_square)
@@ -97,6 +96,7 @@ def encode_board(board):
         tensor[17, rank, file] = 1
 
     return tensor
+
 
 
 # ==========================================
