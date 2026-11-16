@@ -69,11 +69,19 @@ Processes raw chess data into ML-ready format:
 
 ## Screenshots
 
-The following screenshots document the dataset inspection process:
+The following screenshots document the dataset inspection and preparation process:
 
-- **dataset-build.png**: Shows the dataset structure and build pipeline output
-- **dataset-conection-test.png**: API connectivity validation results
-- **parsetest.png**: Move parser test cases and validation
+![Dataset Build Pipeline](screenshots/dataset-build.png)
+*Dataset structure and build pipeline output*
+
+![API Connection Test](screenshots/dataset-conection-test.png)
+*API connectivity validation results*
+
+![Parser Test Cases](screenshots/parsetest.png)
+*Move parser test cases and validation*
+
+![Data Preparation Pipeline](screenshots/data-prepare.png)
+*Data preprocessing pipeline for ML training*
 
 ## Project Structure
 
