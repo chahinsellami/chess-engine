@@ -68,6 +68,25 @@ Processes raw chess data into ML-ready format:
 - Validates API connectivity
 - Structures data for training pipelines
 
+## Web GUI
+
+The project includes a local web interface for playing against the engine and
+checking the machine-learning setup.
+
+```bash
+python gui.py
+```
+
+Open [http://127.0.0.1:5000](http://127.0.0.1:5000) in a browser. The interface
+includes:
+
+- Responsive chess board with legal-move highlights
+- Automatic engine replies using depth-3 search
+- Move history, undo, new game, and pawn promotion choices
+- Live position evaluation and engine status
+- **Validation** tab for PyTorch, checkpoint, dataset, board-rule, and training
+  metric checks
+
 ## Screenshots
 
 The following screenshots document the dataset inspection and preparation process:
@@ -94,11 +113,17 @@ chess-engine/
 ├── inspect_dataset.py    # Dataset exploration script
 ├── test_parser.py        # Parser validation tests
 ├── build_dataset.py      # Dataset processing pipeline
+├── gui.py                 # Local Flask web interface
+├── templates/             # Web page markup
+├── static/                # Web UI styles and behavior
 └── screenshots/          # Documentation images
     ├── dataset-build.png
     ├── dataset-conection-test.png
     └── parsetest.png
 ```
+
+The board uses the open-source Cburnett chess piece artwork from
+[Lichess](https://github.com/lichess-org/lila/tree/master/public/piece/cburnett).
 
 ## Next Steps
 

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#11161d">
+  <title>Neural Chess Lab</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Neural Chess home">
+        <span class="brand-mark">♞</span>
+        <span><strong>NEURAL CHESS</strong><small>AN ENGINE FOR STUDY</small></span>
+      </a>
+      <div class="topbar-meta"><span class="live-dot"></span> LOCAL ENGINE</div>
+    </header>
+
+    <main class="workspace">
+      <section class="intro">
+        <div>
+          <p class="eyebrow">A MACHINE LEARNING CHESS ENGINE</p>
+          <h1>Play the position.<br><em>Study the move.</em></h1>
+          <p class="lede">A quiet place to play against the engine and see how the position changes.</p>
+        </div>
+        <div class="intro-note"><span class="note-index">LOCAL</span><span>YOU PLAY WHITE<br><b>THE ENGINE PLAYS BLACK</b></span></div>
+      </section>
+
+      <section class="game-grid">
+        <div class="board-column">
+          <div class="player-row">
+            <div class="player"><span class="avatar engine-avatar">♞</span><span><b>ENGINE</b><small>BLACK · PYTORCH</small></span></div>
+            <div class="turn-badge" id="turnBadge">YOUR TURN</div>
+          </div>
+          <div class="board-wrap">
+            <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+            <div class="board-glow"></div>
+          </div>
+          <div class="player-row bottom-player">
+            <div class="player"><span class="avatar human-avatar">✦</span><span><b>YOU</b><small>WHITE · HUMAN</small></span></div>
+            <div class="material" id="material">MATERIAL <b>EVEN</b></div>
+          </div>
+        </div>
+
+        <aside class="side-column">
+          <div class="side-tabs" role="tablist">
+            <button class="tab active" data-tab="game" role="tab">Game</button>
+            <button class="tab" data-tab="validation" role="tab">Validation <span class="tab-pulse"></span></button>
+          </div>
+          <div id="gamePanel" class="panel-content">
+            <div class="status-card">
+              <span class="status-kicker">POSITION STATUS</span>
+              <h2 id="statusTitle">Your turn</h2>
+              <p id="statusDetail">Choose a move on the board to begin.</p>
+            </div>
+            <div class="analysis-card">
+              <div class="card-heading"><span>ENGINE READOUT</span><span class="mini-live">LIVE</span></div>
+              <div class="eval-row"><span class="eval-value" id="evalValue">0.00</span><span class="eval-label">CENTIPAWNS<br><small>WHITE ADVANTAGE</small></span></div>
+              <div class="eval-track"><span id="evalBar"></span></div>
+              <p class="analysis-copy" id="analysisCopy">The engine will evaluate your position after each move.</p>
+            </div>
+            <div class="moves-card">
+              <div class="card-heading"><span>MOVE LOG</span><span id="moveCount">00 MOVES</span></div>
+              <div id="moveList" class="move-list"><div class="empty-state">Your first move is waiting.</div></div>
+            </div>
+            <div class="control-row">
+              <button id="newGame" class="button primary">NEW GAME <span>↗</span></button>
+              <button id="undo" class="button secondary">UNDO</button>
+            </div>
+          </div>
+          <div id="validationPanel" class="panel-content hidden">
+            <div class="status-card validation-hero">
+              <span class="status-kicker">MODEL + ENGINE CHECKS</span>
+              <h2 id="validationTitle">Checking system</h2>
+              <p id="validationSummary">Verifying the pieces that make this experiment run.</p>
+            </div>
+            <div id="checkList" class="check-list"></div>
+            <div class="training-card">
+              <div class="card-heading"><span>TRAINING SNAPSHOT</span><span class="mini-live">TORCH</span></div>
+              <div class="metric-grid">
+                <div><small>VAL ACCURACY</small><strong id="valAccuracy">—</strong></div>
+                <div><small>TOP 5</small><strong id="valTop5">—</strong></div>
+                <div><small>EPOCH</small><strong id="valEpoch">—</strong></div>
+              </div>
+              <p class="source" id="metricSource">Metrics are read from the latest checkpoint.</p>
+            </div>
+            <button id="refreshValidation" class="button secondary full">RUN CHECKS <span>↻</span></button>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <footer><span>NEURAL CHESS · MACHINE LEARNING PROJECT</span><span>LOCAL ONLY</span></footer>
+  </div>
+  <div id="promotionModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="promotionTitle">
+    <div class="modal-card"><span class="status-kicker">LAST RANK</span><h2 id="promotionTitle">Choose a promotion</h2><p>How should your pawn enter the engine's next chapter?</p><div id="promotionChoices" class="promotion-choices"></div></div>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
