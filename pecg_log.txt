@@ -1,0 +1,13 @@
+2026-11-16 21:50:01,866 :: main :: line: 10312 :: CRITICAL :: Unexpected error, the program stops.
+Traceback (most recent call last):
+  File "C:\Users\chahi\OneDrive\Documents\chess\gui.py", line 10307, in main
+    pecg.main_loop()
+  File "C:\Users\chahi\OneDrive\Documents\chess\gui.py", line 10209, in main_loop
+    self.check_engine_config_file()
+  File "C:\Users\chahi\OneDrive\Documents\chess\gui.py", line 5049, in check_engine_config_file
+    self.engine_file_list = self.get_engines()
+                            ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chahi\OneDrive\Documents\chess\gui.py", line 8861, in get_engines
+    files = os.listdir(engine_path)
+            ^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [WinError 3] The system cannot find the path specified: 'Engines'

@@ -1,0 +1,18 @@
+{
+    "dataset": "Lichess standard chess games",
+    "training_positions": 801458,
+    "validation_positions": 98535,
+    "testing_positions": 100007,
+    "model_parameters": 43170368,
+    "channels": 128,
+    "residual_blocks": 4,
+    "batch_size": 64,
+    "epochs_completed": 20,
+    "best_epoch": 3,
+    "best_validation_top1": 32.96899578829857,
+    "test_loss": 2.4853449899672757,
+    "test_top1": 33.046686731928766,
+    "test_top5": 69.24615276930615,
+    "total_training_seconds": 2761.300156354904,
+    "gpu": "NVIDIA GeForce RTX 5070 Ti"
+}
