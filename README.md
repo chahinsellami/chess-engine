@@ -2,6 +2,17 @@
 
 A chess engine built for machine learning research. This repository contains the initial dataset inspection and processing pipeline.
 
+## Quick Start
+
+```bash
+python -m venv .venv
+.\\.venv\\Scripts\\Activate.ps1
+pip install -r requirements.txt
+python gui.py
+```
+
+Open [http://127.0.0.1:5000](http://127.0.0.1:5000).
+
 ## Overview
 
 This project explores using machine learning to improve chess engine decision-making. The approach involves:
@@ -46,7 +57,7 @@ Key packages:
 
 The project includes tools for exploring chess datasets:
 
-### `inspect_dataset.py`
+### `scripts/inspect_dataset.py`
 
 Explores chess game datasets to understand:
 - Game length distributions
@@ -54,14 +65,14 @@ Explores chess game datasets to understand:
 - Player ratings
 - Move statistics
 
-### `test_parser.py`
+### `test_tactical_positions.py`
 
 Validates move parsing functionality:
 - SAN (Standard Algebraic Notation) parsing
 - Move legality verification
 - Board state reconstruction
 
-### `build_dataset.py`
+### `scripts/build_dataset.py`
 
 Processes raw chess data into ML-ready format:
 - Fetches games from Lichess API
@@ -87,6 +98,18 @@ includes:
 - **Validation** tab for PyTorch, checkpoint, dataset, board-rule, and training
   metric checks
 
+### Opponent Modes
+
+The game panel supports:
+
+- **Human vs Neural Bot**
+- **Human vs Stockfish**
+- **Engine vs Engine**, with Neural Bot or Stockfish on either side
+
+Stockfish is loaded from `engines/stockfish/stockfish19.exe`. Levels 1–8 adjust
+Stockfish skill and search time. The executable is not downloaded or modified
+by the application.
+
 ## Screenshots
 
 The following screenshots document the dataset inspection and preparation process:
@@ -109,17 +132,24 @@ The following screenshots document the dataset inspection and preparation proces
 chess-engine/
 ├── README.md              # This file
 ├── requirements.txt       # Python dependencies
-├── .gitignore            # Git ignore rules
-├── inspect_dataset.py    # Dataset exploration script
-├── test_parser.py        # Parser validation tests
-├── build_dataset.py      # Dataset processing pipeline
-├── gui.py                 # Local Flask web interface
-├── templates/             # Web page markup
-├── static/                # Web UI styles and behavior
-└── screenshots/          # Documentation images
-    ├── dataset-build.png
-    ├── dataset-conection-test.png
-    └── parsetest.png
+├── .gitignore             # Local and generated-file ignore rules
+├── gui.py                 # Local Flask web entry point
+├── engine.py              # Chess search and evaluation
+├── play.py                # Neural-network inference and CLI play
+├── prepare_data.py        # 1-million-position tensor preparation
+├── train_1m.py            # 1-million-position model training
+├── test_tactical_positions.py # Chess and engine smoke tests
+├── data/
+│   ├── positions_1m.parquet
+│   └── chess_training_data_1m.npz
+├── checkpoints_1m/
+├── results_1m/            # 1-million-position training metrics
+├── scripts/               # Dataset builders and legacy utilities
+├── templates/             # Flask page markup
+├── static/                # Web UI styles, scripts, and SVG pieces
+├── screenshots/           # Pipeline and app screenshots
+├── docs/                  # Design and project documentation
+└── archive/               # Preserved standard-size experiments
 ```
 
 The board uses the open-source Cburnett chess piece artwork from

@@ -99,11 +99,23 @@ async function submitMove(uci) {
 function render() {
   renderBoard();
   $("statusTitle").textContent = state.status;
-  $("statusDetail").textContent = state.thinking ? "The neural engine is searching the position." : state.game_over ? "This game has reached a final position." : "Choose a move on the board to continue.";
+  $("statusDetail").textContent = state.thinking
+    ? "The selected engine is searching the position."
+    : state.game_over
+      ? "This game has reached a final position."
+      : state.mode === "engine"
+        ? `${state.white_name} vs ${state.black_name}`
+        : "Choose a move on the board to continue.";
   $("turnBadge").textContent = state.thinking ? "ENGINE THINKING" : state.status.toUpperCase();
   $("evalValue").textContent = `${state.evaluation >= 0 ? "+" : ""}${state.evaluation.toFixed(2)}`;
   $("evalBar").style.width = `${Math.max(8, Math.min(92, 50 + state.evaluation * 8))}%`;
-  $("analysisCopy").textContent = state.search_error || (state.engine_ready ? "Neural ordering + alpha-beta search are active." : "Running in classical fallback mode; see Validation.");
+  $("analysisCopy").textContent = state.search_error
+    || (state.mode === "human"
+      ? (state.opponent === "stockfish"
+        ? `Stockfish level ${state.stockfish_level} is active.`
+        : (state.engine_ready ? "Neural ordering + alpha-beta search are active." : "Running in classical fallback mode; see Validation."))
+      : `${state.white_name} is White · ${state.black_name} is Black`);
+  syncMatchControls();
   $("moveCount").textContent = `${String(state.history.length).padStart(2, "0")} MOVES`;
   const list = $("moveList"); list.innerHTML = "";
   if (!state.history.length) list.innerHTML = '<div class="empty-state">Your first move is waiting.</div>';
@@ -111,6 +123,20 @@ function render() {
     const row = document.createElement("div"); row.className = "move-row";
     row.innerHTML = `<span>${String(i / 2 + 1).padStart(2, "0")}</span><span>${state.history[i]?.san || ""}</span><span>${state.history[i + 1]?.san || ""}</span>`;
     list.appendChild(row);
+  }
+  function syncMatchControls() {
+    $("matchMode").value = state.mode;
+    $("opponent").value = state.opponent;
+    $("whiteEngine").value = state.white_engine;
+    $("blackEngine").value = state.black_engine;
+    $("stockfishLevel").value = String(state.stockfish_level);
+    const human = state.mode === "human";
+    document.querySelectorAll(".human-config").forEach((element) => element.classList.toggle("hidden", !human));
+    document.querySelectorAll(".engine-config").forEach((element) => element.classList.toggle("hidden", human));
+    const stockfishSelected = human
+      ? state.opponent === "stockfish"
+      : state.white_engine === "stockfish" || state.black_engine === "stockfish";
+    document.querySelectorAll(".stockfish-config").forEach((element) => element.classList.toggle("hidden", !stockfishSelected));
   }
 }
 async function refresh() { try { state = await api("/api/state"); render(); if (state.thinking) startPolling(); } catch (error) { showToast(error.message); } }
@@ -136,7 +162,61 @@ document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click",
   $("validationPanel").classList.toggle("hidden", tab.dataset.tab !== "validation");
   if (tab.dataset.tab === "validation") loadValidation().catch((error) => showToast(error.message));
 }));
-$("newGame").onclick = async () => { try { state = await api("/api/new", { method: "POST" }); selected = null; render(); } catch (error) { showToast(error.message); } };
+function syncConfigPreview() {
+  const human = $("matchMode").value === "human";
+  document.querySelectorAll(".human-config").forEach((element) => element.classList.toggle("hidden", !human));
+  document.querySelectorAll(".engine-config").forEach((element) => element.classList.toggle("hidden", human));
+  const stockfishSelected = human
+    ? $("opponent").value === "stockfish"
+    : $("whiteEngine").value === "stockfish" || $("blackEngine").value === "stockfish";
+  document.querySelectorAll(".stockfish-config").forEach((element) => element.classList.toggle("hidden", !stockfishSelected));
+}
+$("matchMode").onchange = syncConfigPreview;
+$("opponent").onchange = syncConfigPreview;
+$("whiteEngine").onchange = syncConfigPreview;
+$("blackEngine").onchange = syncConfigPreview;
+$("applyConfig").onclick = async () => {
+  try {
+    state = await api("/api/config", {
+      method: "POST",
+      body: JSON.stringify({
+        mode: $("matchMode").value,
+        opponent: $("opponent").value,
+        white_engine: $("whiteEngine").value,
+        black_engine: $("blackEngine").value,
+        stockfish_level: Number($("stockfishLevel").value),
+      }),
+    });
+    selected = null;
+    render();
+    if (state.thinking) startPolling();
+  } catch (error) {
+    showToast(error.message);
+  }
+};
+$("newGame").onclick = async () => {
+  try {
+    if (state.mode === "engine") {
+      state = await api("/api/config", {
+        method: "POST",
+        body: JSON.stringify({
+          mode: state.mode,
+          opponent: state.opponent,
+          white_engine: state.white_engine,
+          black_engine: state.black_engine,
+          stockfish_level: state.stockfish_level,
+        }),
+      });
+      if (state.thinking) startPolling();
+    } else {
+      state = await api("/api/new", { method: "POST" });
+    }
+    selected = null;
+    render();
+  } catch (error) {
+    showToast(error.message);
+  }
+};
 $("undo").onclick = async () => { try { state = await api("/api/undo", { method: "POST" }); selected = null; render(); } catch (error) { showToast(error.message); } };
 $("refreshValidation").onclick = () => loadValidation().catch((error) => showToast(error.message));
 refresh();

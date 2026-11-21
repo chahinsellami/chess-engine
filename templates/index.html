@@ -1,101 +1,546 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#11161d">
-  <title>Neural Chess Lab</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chess engine lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1a1f; --panel:#16252c; --panel-2:#1c2f38; --line:#2b414b;
+  --text:#e8eeec; --muted:#8fa5aa;
+  --amber:#f3b64d; --cream:#f6f0e0; --mint:#7fd6c4; --danger:#ef7b6c;
+  --sq-light:#e9e2cf; --sq-dark:#5a8a86;
+  --hl-last:rgba(243,182,77,.38); --hl-check:rgba(239,123,108,.65);
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --body:"Instrument Sans","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 var(--body)}
+body{min-height:100vh;background:
+  radial-gradient(1200px 600px at 20% -10%,#1b3039 0,transparent 60%),var(--bg)}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:18px clamp(16px,3vw,40px)}
+h1{font:700 22px/1 var(--display);letter-spacing:-.01em;margin:0}
+.status{display:flex;align-items:center;gap:10px;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;
+  background:var(--panel);border:1px solid var(--line);color:var(--text);font-weight:500}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mint)}
+.pill.busy .dot{background:var(--amber);animation:pulse 1s infinite}
+.pill.over .dot{background:var(--danger)}
+@keyframes pulse{50%{opacity:.25}}
+
+.layout{display:grid;grid-template-columns:minmax(300px,min(720px,calc(100vh - 190px))) 380px;
+  gap:28px;justify-content:center;padding:0 clamp(16px,3vw,40px) 40px;align-items:start}
+
+/* board column */
+.board-col{display:flex;flex-direction:column;gap:10px;min-width:0}
+.player{display:flex;align-items:center;justify-content:space-between;padding:2px 4px}
+.player .who{display:flex;align-items:center;gap:10px;font:600 16px var(--display)}
+.chip{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--cream)}
+.chip.w{background:var(--cream)} .chip.b{background:#162126;border-color:#6d8791}
+.player .tag{font-size:13px;color:var(--amber);opacity:0;transition:opacity .2s}
+.player.active .tag{opacity:1}
+
+.board-wrap{display:flex;gap:10px;align-items:stretch}
+.evalbar{width:32px;border-radius:8px;overflow:hidden;position:relative;background:#0b1317;
+  border:1px solid var(--line);flex:none}
+.evalbar .white{position:absolute;left:0;right:0;bottom:0;background:var(--cream);transition:height .5s ease}
+.evalbar.flipped .white{bottom:auto;top:0}
+.evalbar span{position:absolute;left:0;right:0;text-align:center;font-size:11px;font-weight:600;
+  font-variant-numeric:tabular-nums;mix-blend-mode:difference;color:#fff;bottom:4px}
+.evalbar.flipped span{bottom:auto;top:4px}
+
+.board{position:relative;flex:1;aspect-ratio:1;border-radius:10px;overflow:hidden;
+  box-shadow:0 0 0 1px var(--line),0 24px 60px -20px rgba(0,0,0,.7);user-select:none}
+.grid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr)}
+.sq{position:relative;display:flex;align-items:center;justify-content:center;cursor:default}
+.sq.l{background:var(--sq-light)} .sq.d{background:var(--sq-dark)}
+.sq.last::before,.sq.incheck::before{content:"";position:absolute;inset:0;background:var(--hl-last)}
+.sq.incheck::before{background:radial-gradient(circle,var(--hl-check) 0,transparent 75%)}
+.sq.sel::before{content:"";position:absolute;inset:0;background:rgba(127,214,196,.55)}
+.sq.clickable{cursor:pointer}
+.sq .coord{position:absolute;font-size:clamp(8px,1.4vw,11px);font-weight:600;opacity:.7;pointer-events:none}
+.sq.l .coord{color:var(--sq-dark)} .sq.d .coord{color:var(--sq-light)}
+.coord.r{top:3px;left:4px} .coord.f{bottom:2px;right:4px}
+.piece{position:relative;font-size:clamp(28px,6.6vw,74px);line-height:1;z-index:1;
+  font-family:"Segoe UI Symbol","Noto Sans Symbols 2","Apple Symbols","DejaVu Sans",sans-serif;
+  pointer-events:none;-webkit-text-stroke:1.4px #121c20;paint-order:stroke fill;
+  text-shadow:0 2px 3px rgba(0,0,0,.35)}
+.piece.w{color:#fffdf6} .piece.b{color:#1a2529;-webkit-text-stroke:1.2px #0b1215}
+.dotmark{position:absolute;width:28%;height:28%;border-radius:50%;background:rgba(18,28,32,.32);z-index:2;pointer-events:none}
+.ring{position:absolute;inset:6%;border-radius:50%;border:5px solid rgba(18,28,32,.32);z-index:2;pointer-events:none}
+
+#arrows{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+#arrows .arrow{transition:opacity .2s}
+#arrows.dim .arrow:not(.hot){opacity:.12!important}
+
+.promo{position:absolute;inset:0;background:rgba(10,16,19,.72);display:none;align-items:center;justify-content:center;z-index:5}
+.promo.open{display:flex}
+.promo div{display:flex;gap:10px;background:var(--panel);padding:14px;border-radius:14px;border:1px solid var(--line)}
+.promo button{width:64px;height:64px;font-size:44px;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel-2);color:var(--cream);cursor:pointer;line-height:1}
+.promo button:hover{border-color:var(--amber)}
+
+/* side panel */
+aside{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card h2{font:700 16px var(--display);margin:0 0 12px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.card h2 small{font:500 12.5px var(--body);color:var(--muted)}
+
+.toggle{display:flex;align-items:center;gap:10px;margin-bottom:12px;color:var(--muted);font-size:13.5px;flex-wrap:wrap}
+.switch{position:relative;width:38px;height:22px;flex:none}
+.switch input{position:absolute;inset:0;opacity:0;cursor:pointer;margin:0}
+.switch i{position:absolute;inset:0;border-radius:99px;background:#2a3f49;transition:background .2s}
+.switch i::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--cream);transition:transform .2s}
+.switch input:checked+i{background:var(--amber)}
+.switch input:checked+i::after{transform:translateX(16px);background:#1b2a30}
+.switch input:focus-visible+i{outline:2px solid var(--amber);outline-offset:2px}
+.seg{display:inline-flex;background:#0f1b20;border:1px solid var(--line);border-radius:9px;padding:2px;margin-left:auto}
+.seg button{border:0;background:none;padding:3px 10px;border-radius:7px;cursor:pointer;color:var(--muted);font-weight:600;font-size:13px}
+.seg button[aria-pressed=true]{background:var(--panel-2);color:var(--text)}
+
+.preds{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.pred{display:grid;grid-template-columns:70px 1fr 48px;align-items:center;gap:10px;padding:7px 10px;
+  border-radius:9px;background:var(--panel-2);border:1px solid transparent;cursor:default}
+.pred:hover{border-color:var(--line)}
+.pred .san{font:700 15px var(--display)}
+.pred .bar{height:8px;border-radius:99px;background:#0f1b20;overflow:hidden}
+.pred .bar i{display:block;height:100%;border-radius:99px;background:var(--cream);opacity:.7}
+.pred.top .bar i{background:var(--amber);opacity:1}
+.pred .pct{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;font-size:13.5px}
+.note{margin:10px 0 0;font-size:12.5px;color:var(--muted)}
+.empty{color:var(--muted);font-size:14px;margin:0}
+
+.moves{max-height:200px;overflow:auto;display:grid;grid-template-columns:34px 1fr 1fr;gap:2px 8px;font-variant-numeric:tabular-nums}
+.moves .n{color:var(--muted)} .moves .m{padding:1px 6px;border-radius:6px}
+.moves .m.now{background:var(--panel-2);color:var(--amber);font-weight:600}
+
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--panel-2);padding:8px 14px;border-radius:10px;cursor:pointer;font-weight:600}
+.btn:hover:not(:disabled){border-color:var(--amber)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--amber);border-color:var(--amber);color:#1a2327}
+.btn.primary:hover:not(:disabled){filter:brightness(1.07)}
+
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;font-size:13px;color:var(--muted)}
+.field select{background:#0f1b20;border:1px solid var(--line);border-radius:9px;padding:8px 10px;color:var(--text)}
+.field input[type=range]{accent-color:var(--amber)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hidden{display:none!important}
+.engine-controls{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.engine-controls .btn{width:100%}
+.error{margin-top:10px;color:var(--danger);font-size:13.5px}
+
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:16px;padding:22px;width:min(520px,92vw)}
+dialog::backdrop{background:rgba(5,10,12,.7)}
+.chk{display:grid;grid-template-columns:20px 1fr;gap:2px 10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.chk b{font-weight:600} .chk span{color:var(--muted);font-size:13px;grid-column:2;word-break:break-all}
+.ok{color:var(--mint)} .bad{color:var(--danger)}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}
+.metrics div{background:var(--panel-2);border-radius:10px;padding:10px 12px}
+.metrics small{display:block;color:var(--muted)} .metrics strong{font:700 18px var(--display);font-variant-numeric:tabular-nums}
+
+@media (max-width:980px){
+  .layout{grid-template-columns:minmax(0,640px)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
 </head>
 <body>
-  <div class="shell">
-    <header class="topbar">
-      <a class="brand" href="/" aria-label="Neural Chess home">
-        <span class="brand-mark">♞</span>
-        <span><strong>NEURAL CHESS</strong><small>AN ENGINE FOR STUDY</small></span>
-      </a>
-      <div class="topbar-meta"><span class="live-dot"></span> LOCAL ENGINE</div>
-    </header>
-
-    <main class="workspace">
-      <section class="intro">
-        <div>
-          <p class="eyebrow">A MACHINE LEARNING CHESS ENGINE</p>
-          <h1>Play the position.<br><em>Study the move.</em></h1>
-          <p class="lede">A quiet place to play against the engine and see how the position changes.</p>
-        </div>
-        <div class="intro-note"><span class="note-index">LOCAL</span><span>YOU PLAY WHITE<br><b>THE ENGINE PLAYS BLACK</b></span></div>
-      </section>
-
-      <section class="game-grid">
-        <div class="board-column">
-          <div class="player-row">
-            <div class="player"><span class="avatar engine-avatar">♞</span><span><b>ENGINE</b><small>BLACK · PYTORCH</small></span></div>
-            <div class="turn-badge" id="turnBadge">YOUR TURN</div>
-          </div>
-          <div class="board-wrap">
-            <div id="board" class="board" role="grid" aria-label="Chess board"></div>
-            <div class="board-glow"></div>
-          </div>
-          <div class="player-row bottom-player">
-            <div class="player"><span class="avatar human-avatar">✦</span><span><b>YOU</b><small>WHITE · HUMAN</small></span></div>
-            <div class="material" id="material">MATERIAL <b>EVEN</b></div>
-          </div>
-        </div>
-
-        <aside class="side-column">
-          <div class="side-tabs" role="tablist">
-            <button class="tab active" data-tab="game" role="tab">Game</button>
-            <button class="tab" data-tab="validation" role="tab">Validation <span class="tab-pulse"></span></button>
-          </div>
-          <div id="gamePanel" class="panel-content">
-            <div class="status-card">
-              <span class="status-kicker">POSITION STATUS</span>
-              <h2 id="statusTitle">Your turn</h2>
-              <p id="statusDetail">Choose a move on the board to begin.</p>
-            </div>
-            <div class="analysis-card">
-              <div class="card-heading"><span>ENGINE READOUT</span><span class="mini-live">LIVE</span></div>
-              <div class="eval-row"><span class="eval-value" id="evalValue">0.00</span><span class="eval-label">CENTIPAWNS<br><small>WHITE ADVANTAGE</small></span></div>
-              <div class="eval-track"><span id="evalBar"></span></div>
-              <p class="analysis-copy" id="analysisCopy">The engine will evaluate your position after each move.</p>
-            </div>
-            <div class="moves-card">
-              <div class="card-heading"><span>MOVE LOG</span><span id="moveCount">00 MOVES</span></div>
-              <div id="moveList" class="move-list"><div class="empty-state">Your first move is waiting.</div></div>
-            </div>
-            <div class="control-row">
-              <button id="newGame" class="button primary">NEW GAME <span>↗</span></button>
-              <button id="undo" class="button secondary">UNDO</button>
-            </div>
-          </div>
-          <div id="validationPanel" class="panel-content hidden">
-            <div class="status-card validation-hero">
-              <span class="status-kicker">MODEL + ENGINE CHECKS</span>
-              <h2 id="validationTitle">Checking system</h2>
-              <p id="validationSummary">Verifying the pieces that make this experiment run.</p>
-            </div>
-            <div id="checkList" class="check-list"></div>
-            <div class="training-card">
-              <div class="card-heading"><span>TRAINING SNAPSHOT</span><span class="mini-live">TORCH</span></div>
-              <div class="metric-grid">
-                <div><small>VAL ACCURACY</small><strong id="valAccuracy">—</strong></div>
-                <div><small>TOP 5</small><strong id="valTop5">—</strong></div>
-                <div><small>EPOCH</small><strong id="valEpoch">—</strong></div>
-              </div>
-              <p class="source" id="metricSource">Metrics are read from the latest checkpoint.</p>
-            </div>
-            <button id="refreshValidation" class="button secondary full">RUN CHECKS <span>↻</span></button>
-          </div>
-        </aside>
-      </section>
-    </main>
-    <footer><span>NEURAL CHESS · MACHINE LEARNING PROJECT</span><span>LOCAL ONLY</span></footer>
+<header>
+  <h1>Chess engine lab</h1>
+  <div class="status">
+    <span id="statusPill" class="pill"><span class="dot"></span><span id="statusText">Loading</span></span>
+    <button class="btn" id="validateBtn">System check</button>
   </div>
-  <div id="promotionModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="promotionTitle">
-    <div class="modal-card"><span class="status-kicker">LAST RANK</span><h2 id="promotionTitle">Choose a promotion</h2><p>How should your pawn enter the engine's next chapter?</p><div id="promotionChoices" class="promotion-choices"></div></div>
-  </div>
-  <div id="toast" class="toast" role="status"></div>
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</header>
+
+<main class="layout">
+  <section class="board-col">
+    <div class="player" id="topPlayer"><div class="who"><span class="chip b"></span><span class="name">Black</span></div><span class="tag">Thinking</span></div>
+    <div class="board-wrap">
+      <div class="evalbar" id="evalbar" title="Evaluation, from White's side"><div class="white" id="evalWhite"></div><span id="evalNum">0.0</span></div>
+      <div class="board" id="board">
+        <div class="grid" id="grid" role="grid" aria-label="Chess board"></div>
+        <svg id="arrows" viewBox="0 0 8 8" aria-hidden="true"></svg>
+        <div class="promo" id="promo"><div id="promoChoices"></div></div>
+      </div>
+    </div>
+    <div class="player" id="bottomPlayer"><div class="who"><span class="chip w"></span><span class="name">White</span></div><span class="tag">Thinking</span></div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2><span id="predTitle">Predicted moves</span><small id="predSub"></small></h2>
+      <div class="toggle">
+        <label class="switch"><input type="checkbox" id="showArrows" checked aria-label="Show predictions on the board"><i></i></label>
+        <span>Show on board</span>
+        <div class="seg" id="countSeg" role="group" aria-label="Number of moves">
+          <button data-n="1" aria-pressed="false">1</button>
+          <button data-n="3" aria-pressed="false">3</button>
+          <button data-n="5" aria-pressed="true">5</button>
+        </div>
+      </div>
+      <ul class="preds" id="preds"></ul>
+      <p class="note hidden" id="predNote"></p>
+    </div>
+
+    <div class="card">
+      <h2>Moves</h2>
+      <div class="moves" id="moves"></div>
+      <div class="engine-controls" id="engineControls">
+        <button class="btn primary" id="stepBtn">Play next move</button>
+        <div class="toggle" style="margin:10px 0 0"><label class="switch"><input type="checkbox" id="autoplay" aria-label="Auto-play"><i></i></label><span id="autoLabel">Play automatically</span></div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn" id="undoBtn">Undo</button>
+        <button class="btn" id="flipBtn">Flip board</button>
+        <button class="btn" id="newBtn">New game</button>
+      </div>
+      <div class="error hidden" id="error"></div>
+    </div>
+
+    <div class="card">
+      <h2>Match setup</h2>
+      <div class="field"><label for="mode">Mode</label>
+        <select id="mode"><option value="human">You (White) vs engine</option><option value="engine">Engine vs engine</option></select></div>
+      <div class="field" id="oppField"><label for="opponent">Your opponent</label>
+        <select id="opponent"><option value="neural">Neural bot</option><option value="stockfish">Stockfish</option></select></div>
+      <div class="two hidden" id="engineFields">
+        <div class="field"><label for="whiteEngine">White</label>
+          <select id="whiteEngine"><option value="neural">Neural bot</option><option value="stockfish">Stockfish</option></select></div>
+        <div class="field"><label for="blackEngine">Black</label>
+          <select id="blackEngine"><option value="neural">Neural bot</option><option value="stockfish">Stockfish</option></select></div>
+      </div>
+      <div class="field"><label for="level">Stockfish level: <b id="levelVal">5</b></label>
+        <input type="range" id="level" min="1" max="8" value="5"></div>
+      <button class="btn primary" id="startBtn">Start match</button>
+    </div>
+  </aside>
+</main>
+
+<dialog id="validation">
+  <h2 style="font:700 18px var(--display);margin:0 0 6px">System check</h2>
+  <div id="validationBody"></div>
+  <div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn" id="closeValidation">Close</button></div>
+</dialog>
+
+<script>
+const GLYPH = {k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟"};
+const $ = id => document.getElementById(id);
+let S = null;                 // latest server state
+let P = {fen:null, moves:[], source:null}; // latest predictions
+let flipped = false, selected = null, pendingPromo = null, hoverUci = null;
+let topN = 5, predFen = null, pollTimer = null;
+
+/* ---------- helpers ---------- */
+const files = "abcdefgh";
+const sqName = (f, r) => files[f] + (r + 1);
+function parseFen(fen){
+  const rows = fen.split(" ")[0].split("/"), map = {};
+  rows.forEach((row, i) => { let f = 0;
+    for (const ch of row){ if (/\d/.test(ch)) f += +ch; else { map[sqName(f, 7 - i)] = ch; f++; } } });
+  return map;
+}
+const pos = sq => { const f = files.indexOf(sq[0]), r = +sq[1] - 1;
+  return flipped ? {x: 7 - f, y: r} : {x: f, y: 7 - r}; };
+async function api(path, opts){
+  const res = await fetch(path, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+function showError(msg){ const e = $("error"); e.textContent = msg || ""; e.classList.toggle("hidden", !msg); }
+const enginePredictions = () => S && (S.mode === "engine" || S.turn === "black");
+const humanTurn = () => S && S.mode === "human" && S.turn === "white" && !S.thinking && !S.game_over;
+
+/* ---------- board ---------- */
+function buildGrid(){
+  const grid = $("grid"); grid.innerHTML = "";
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++){
+    const f = flipped ? 7 - x : x, r = flipped ? y : 7 - y;
+    const d = document.createElement("div");
+    d.className = "sq " + ((f + r) % 2 === 0 ? "d" : "l");
+    d.dataset.sq = sqName(f, r);
+    if (x === 0) d.insertAdjacentHTML("beforeend", `<span class="coord r">${r + 1}</span>`);
+    if (y === 7) d.insertAdjacentHTML("beforeend", `<span class="coord f">${files[f]}</span>`);
+    d.addEventListener("click", () => onSquare(d.dataset.sq));
+    grid.appendChild(d);
+  }
+}
+function kingSquareInCheck(map){
+  if (!S.check) return null;
+  const k = S.turn === "white" ? "K" : "k";
+  return Object.keys(map).find(s => map[s] === k) || null;
+}
+function renderBoard(){
+  if (!S) return;
+  const map = parseFen(S.fen), last = S.last_move, chk = kingSquareInCheck(map);
+  const targets = selected ? [...new Set(S.legal_moves.filter(m => m.startsWith(selected)).map(m => m.slice(2, 4)))] : [];
+  document.querySelectorAll(".sq").forEach(el => {
+    const sq = el.dataset.sq, p = map[sq];
+    el.querySelectorAll(".piece,.dotmark,.ring").forEach(n => n.remove());
+    el.classList.toggle("last", !!last && (sq === last.slice(0, 2) || sq === last.slice(2, 4)));
+    el.classList.toggle("incheck", sq === chk);
+    el.classList.toggle("sel", sq === selected);
+    el.classList.toggle("clickable", humanTurn() && (p && p === p.toUpperCase() || targets.includes(sq)));
+    if (p){
+      const w = p === p.toUpperCase();
+      el.insertAdjacentHTML("beforeend", `<span class="piece ${w ? "w" : "b"}">${GLYPH[p.toLowerCase()]}\uFE0E</span>`);
+    }
+    if (targets.includes(sq)) el.insertAdjacentHTML("beforeend", p ? '<span class="ring"></span>' : '<span class="dotmark"></span>');
+  });
+  renderArrows();
+}
+
+/* ---------- prediction arrows ---------- */
+function arrowSvg(m, rank, slot){
+  const a = pos(m.uci.slice(0, 2)), b = pos(m.uci.slice(2, 4));
+  const x1 = a.x + .5, y1 = a.y + .5, x2 = b.x + .5, y2 = b.y + .5;
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+  const w = .09 + m.prob * .22, head = .3 + w, hw = head * .62;
+  const sx = x1 + ux * .22, sy = y1 + uy * .22;
+  const bx = x2 - ux * head * 1.05, by = y2 - uy * head * 1.05;
+  const tx = x2 - ux * .08, ty = y2 - uy * .08;
+  const top = rank === 0, color = top ? "var(--amber)" : "var(--cream)";
+  const op = Math.max(.45, Math.min(.95, .4 + m.prob * 1.1)) * (top ? 1 : .88);
+  const hot = m.uci === hoverUci ? " hot" : "";
+  const pct = m.prob * 100, label = (pct < 10 && pct > 0 ? pct.toFixed(1) : Math.round(pct)) + "%";
+  // percentage badge sits in the top-right corner of the destination square
+  const bw = .6, bh = .3, rx = b.x + 1 - bw - .03, ry = b.y + .03 + slot * (bh + .03);
+  const shape = `<g class="arrow${hot}" data-uci="${m.uci}" opacity="${op}">
+    <line x1="${sx}" y1="${sy}" x2="${bx}" y2="${by}" stroke="${color}" stroke-width="${w}" stroke-linecap="round"/>
+    <polygon points="${tx},${ty} ${bx - uy * hw},${by + ux * hw} ${bx + uy * hw},${by - ux * hw}" fill="${color}"/></g>`;
+  const badge = `<g class="arrow${hot}" data-uci="${m.uci}">
+    <rect x="${rx}" y="${ry}" width="${bw}" height="${bh}" rx=".1" fill="${top ? "#f3b64d" : "#121c20"}" stroke="${top ? "#121c20" : "#f6f0e0"}" stroke-width=".02"/>
+    <text x="${rx + bw / 2}" y="${ry + bh / 2 + .07}" text-anchor="middle" font-size=".21" font-weight="700" fill="${top ? "#1a2327" : "#f6f0e0"}" font-family="Instrument Sans,system-ui,sans-serif">${label}</text></g>`;
+  return {shape, badge};
+}
+function renderArrows(){
+  const svg = $("arrows");
+  const ok = $("showArrows").checked && enginePredictions() && P.fen === S?.fen && !S.thinking && !S.game_over;
+  const list = ok ? P.moves.slice(0, topN) : [];
+  const used = {}, parts = list.map((m, i) => {
+    const dest = m.uci.slice(2, 4); const slot = used[dest] = (used[dest] ?? -1) + 1;
+    return arrowSvg(m, i, slot);
+  });
+  // arrows first (weakest underneath), then every badge on top so the numbers stay readable
+  svg.innerHTML = parts.map(p => p.shape).reverse().join("") + parts.map(p => p.badge).join("");
+  svg.classList.toggle("dim", !!hoverUci);
+}
+function renderPredictions(){
+  const ul = $("preds"), note = $("predNote");
+  const side = S ? (S.turn === "white" ? S.white_name : S.black_name) : "";
+  $("predTitle").textContent = "Predicted moves";
+  $("predSub").textContent = S && !S.game_over ? `${S.turn === "white" ? "White" : "Black"} to move` : "";
+  if (S && !S.game_over && !enginePredictions()){
+    $("predSub").textContent = "";
+    ul.innerHTML = '<li class="empty">Predictions are shown for the engine’s moves only.</li>';
+    note.classList.add("hidden"); return;
+  }
+  const fresh = S && P.fen === S.fen && P.moves.length && !S.thinking;
+  if (!fresh){
+    ul.innerHTML = `<li class="empty">${S && S.game_over ? "The game is over." : S && S.thinking ? `${side} is thinking…` : "Waiting for predictions…"}</li>`;
+    note.classList.add("hidden"); return;
+  }
+  ul.innerHTML = P.moves.slice(0, 5).map((m, i) => `
+    <li class="pred ${i === 0 ? "top" : ""}" data-uci="${m.uci}">
+      <span class="san">${m.san}</span>
+      <span class="bar"><i style="width:${Math.max(3, m.prob * 100)}%"></i></span>
+      <span class="pct">${(m.prob * 100).toFixed(m.prob < .1 ? 1 : 0)}%</span>
+    </li>`).join("");
+  ul.querySelectorAll(".pred").forEach(li => {
+    li.addEventListener("mouseenter", () => { hoverUci = li.dataset.uci; renderArrows(); });
+    li.addEventListener("mouseleave", () => { hoverUci = null; renderArrows(); });
+  });
+  note.textContent = P.source === "policy"
+    ? "Probabilities come from your trained network. The engine searches only its top 5 moves and plays the best one by its own evaluation, so it may not pick the top arrow."
+    : "The neural network gave no moves here, so these are ranked by the engine’s evaluation one move ahead.";
+  note.classList.remove("hidden");
+}
+async function loadPredictions(){
+  if (!S || S.game_over || S.thinking || !enginePredictions() || predFen === S.fen) return;
+  const fen = S.fen; predFen = fen;
+  try{
+    const data = await api("/api/predictions?n=8");
+    if (data.fen === fen){ P = data; if (S && S.fen === fen){ renderPredictions(); renderArrows(); } }
+  }catch(e){ predFen = null; $("preds").innerHTML = `<li class="empty">Could not compute predictions: ${e.message}</li>`; }
+}
+
+/* ---------- moves & input ---------- */
+function onSquare(sq){
+  if (!humanTurn()) return;
+  const map = parseFen(S.fen), p = map[sq];
+  if (selected){
+    const base = selected + sq;
+    const options = S.legal_moves.filter(m => m.startsWith(base));
+    if (options.length){
+      const promo = options.length > 1 || options[0].length === 5;
+      if (promo) { openPromotion(base); } else sendMove(base);
+      return;
+    }
+  }
+  selected = (p && p === p.toUpperCase() && p !== selected) ? sq : null;
+  renderBoard();
+}
+function openPromotion(base){
+  pendingPromo = base;
+  $("promoChoices").innerHTML = ["q","r","b","n"].map(c => `<button data-p="${c}" aria-label="Promote">${GLYPH[c]}\uFE0E</button>`).join("");
+  $("promoChoices").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { $("promo").classList.remove("open"); sendMove(base + b.dataset.p); }));
+  $("promo").classList.add("open");
+}
+async function sendMove(uci){
+  selected = null; showError("");
+  try{ S = await api("/api/move", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({uci})}); render(); }
+  catch(e){ showError(e.message); renderBoard(); }
+}
+$("promo").addEventListener("click", e => { if (e.target === $("promo")){ $("promo").classList.remove("open"); selected = null; renderBoard(); } });
+
+/* ---------- panels ---------- */
+function renderPlayers(){
+  const top = flipped ? "white" : "black", bottom = flipped ? "black" : "white";
+  const set = (el, color) => {
+    el.querySelector(".name").textContent = color === "white" ? S.white_name : S.black_name;
+    el.querySelector(".chip").className = "chip " + (color === "white" ? "w" : "b");
+    el.classList.toggle("active", S.thinking && S.turn === color);
+  };
+  set($("topPlayer"), top); set($("bottomPlayer"), bottom);
+}
+function renderEval(){
+  const ev = S.evaluation || 0, pct = 100 / (1 + Math.exp(-ev * .6));
+  $("evalWhite").style.height = pct + "%";
+  $("evalbar").classList.toggle("flipped", flipped);
+  $("evalNum").textContent = (ev > 0 ? "+" : "") + ev.toFixed(1);
+}
+function renderMoves(){
+  const h = S.history, box = $("moves"); let html = "";
+  for (let i = 0; i < h.length; i += 2){
+    html += `<span class="n">${i / 2 + 1}.</span>`;
+    for (const j of [i, i + 1]) html += h[j] ? `<span class="m${j === h.length - 1 ? " now" : ""}">${h[j].san}</span>` : "<span></span>";
+  }
+  box.innerHTML = html || '<span class="empty" style="grid-column:1/-1">No moves yet. White opens.</span>';
+  box.scrollTop = box.scrollHeight;
+}
+function renderStatus(){
+  const pill = $("statusPill");
+  let text = S.status;
+  const idle = S.status === "Your turn" || S.status === "Engine turn";
+  if (S.mode === "engine" && idle) text = S.autoplay ? "Engines playing" : "Waiting for your click";
+  if (S.mode === "human" && S.status === "Engine turn") text = S.autoplay ? "Bot turn" : "Waiting for your click";
+  if (S.mode === "engine" && S.status === "Engine thinking") text = (S.turn === "white" ? S.white_name : S.black_name) + " thinking";
+  $("statusText").textContent = text;
+  pill.classList.toggle("busy", S.thinking);
+  pill.classList.toggle("over", S.game_over);
+}
+function renderControls(){
+  const busy = S.thinking;
+  $("undoBtn").disabled = busy || !S.history.length;
+  const engineGame = S.mode === "engine";
+  const mover = S.turn === "white" ? S.white_name : S.black_name;
+  if (engineGame){
+    $("stepBtn").textContent = busy ? `${mover} is thinking…` : `Play ${S.turn === "white" ? "White" : "Black"}’s move (${mover})`;
+    $("stepBtn").disabled = busy || S.game_over;
+    $("autoLabel").textContent = "Keep playing until the game ends";
+  } else {
+    const botTurn = S.turn === "black";
+    $("stepBtn").textContent = busy ? `${S.black_name} is thinking…` : botTurn ? `Let ${S.black_name} play` : "Your move";
+    $("stepBtn").disabled = busy || S.game_over || !botTurn;
+    $("autoLabel").textContent = "Reply automatically after my move";
+  }
+  $("autoplay").checked = !!S.autoplay;
+  $("startBtn").disabled = busy;
+  const engineMode = $("mode").value === "engine";
+  $("oppField").classList.toggle("hidden", engineMode);
+  $("engineFields").classList.toggle("hidden", !engineMode);
+  ["opponent","whiteEngine","blackEngine"].forEach(id => {
+    for (const o of $(id).options) if (o.value === "stockfish") o.disabled = !S.stockfish_ready;
+  });
+}
+function render(){
+  if (!S) return;
+  if (selected && !humanTurn()) selected = null;
+  renderStatus(); renderPlayers(); renderEval(); renderMoves(); renderBoard(); renderPredictions(); renderControls();
+  const err = S.search_error || (!S.engine_ready && S.engine_error ? "Neural model not loaded, using fallback search: " + S.engine_error : "");
+  showError(err);
+  loadPredictions();
+  schedulePoll();
+}
+function schedulePoll(){
+  clearTimeout(pollTimer);
+  if (S && (S.thinking || (S.autoplay && !S.game_over)))
+    pollTimer = setTimeout(refresh, 600);
+}
+async function refresh(){ try{ S = await api("/api/state"); render(); }catch(e){ showError(e.message); } }
+
+/* ---------- controls ---------- */
+function syncConfigFromState(){
+  $("mode").value = S.mode; $("opponent").value = S.opponent;
+  $("whiteEngine").value = S.white_engine; $("blackEngine").value = S.black_engine;
+  $("level").value = S.stockfish_level; $("levelVal").textContent = S.stockfish_level;
+}
+$("mode").addEventListener("change", () => S && renderControls());
+$("level").addEventListener("input", e => $("levelVal").textContent = e.target.value);
+$("startBtn").addEventListener("click", async () => {
+  showError(""); selected = null; P = {fen:null, moves:[]}; predFen = null;
+  try{ S = await api("/api/config", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
+    mode:$("mode").value, opponent:$("opponent").value, white_engine:$("whiteEngine").value,
+    black_engine:$("blackEngine").value, stockfish_level:+$("level").value})}); render(); }
+  catch(e){ showError(e.message); }
+});
+$("newBtn").addEventListener("click", async () => {
+  selected = null; P = {fen:null, moves:[]}; predFen = null;
+  try{ S = await api("/api/new", {method:"POST"}); render(); } catch(e){ showError(e.message); }
+});
+$("stepBtn").addEventListener("click", async () => {
+  showError("");
+  try{ S = await api("/api/step", {method:"POST"}); render(); } catch(e){ showError(e.message); }
+});
+$("autoplay").addEventListener("change", async e => {
+  try{ S = await api("/api/autoplay", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({on:e.target.checked})}); render(); }
+  catch(err){ e.target.checked = !e.target.checked; showError(err.message); }
+});
+$("undoBtn").addEventListener("click", async () => {
+  selected = null; predFen = null;
+  try{ S = await api("/api/undo", {method:"POST"}); render(); } catch(e){ showError(e.message); }
+});
+$("flipBtn").addEventListener("click", () => { flipped = !flipped; buildGrid(); render(); });
+$("showArrows").addEventListener("change", renderArrows);
+$("countSeg").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  topN = +b.dataset.n;
+  $("countSeg").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  renderArrows();
+});
+
+/* ---------- system check ---------- */
+$("validateBtn").addEventListener("click", async () => {
+  const body = $("validationBody"); body.innerHTML = '<p class="empty">Running checks…</p>';
+  $("validation").showModal();
+  try{
+    const v = await api("/api/validation");
+    const fmt = (x, d = 3) => x == null ? "n/a" : (typeof x === "number" ? x.toFixed(d) : x);
+    const t = v.training;
+    body.innerHTML = `<p class="empty">${v.passed} of ${v.total} checks passed.</p>` +
+      v.checks.map(c => `<div class="chk"><b class="${c.ok ? "ok" : "bad"}">${c.ok ? "✓" : "✕"}</b><b>${c.name}</b><span>${c.detail}</span></div>`).join("") +
+      (t.metrics_available ? `<div class="metrics">
+        <div><small>Epoch</small><strong>${fmt(t.epoch, 0)}</strong></div>
+        <div><small>Validation loss</small><strong>${fmt(t.validation_loss)}</strong></div>
+        <div><small>Top-1 accuracy</small><strong>${t.validation_accuracy == null ? "n/a" : (t.validation_accuracy * 100).toFixed(1) + "%"}</strong></div>
+        <div><small>Top-5 accuracy</small><strong>${t.validation_top5 == null ? "n/a" : (t.validation_top5 * 100).toFixed(1) + "%"}</strong></div></div>` :
+        '<p class="empty" style="margin-top:12px">No training metrics were saved in the checkpoint.</p>');
+  }catch(e){ body.innerHTML = `<p class="error">${e.message}</p>`; }
+});
+$("closeValidation").addEventListener("click", () => $("validation").close());
+
+/* ---------- start ---------- */
+buildGrid();
+(async () => { await refresh(); if (S) syncConfigFromState(); renderControls(); })();
+</script>
 </body>
 </html>

@@ -160,6 +160,32 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .panel-content { padding-top: 27px; }
 .hidden { display: none !important; }
 .status-card { padding-bottom: 26px; border-bottom: 1px solid var(--line); }
+.match-config {
+  display: grid;
+  gap: 8px;
+  padding: 0 0 22px;
+  border-bottom: 1px solid var(--line);
+}
+.config-row {
+  display: grid;
+  grid-template-columns: 118px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.config-row label {
+  color: var(--muted);
+  font: 9px "DM Mono", monospace;
+  letter-spacing: .08em;
+}
+.config-row select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 8px 9px;
+  font: 11px "DM Sans", sans-serif;
+}
 .status-kicker { color: var(--green); }
 .status-card h2 { margin: 11px 0 6px; font: 400 30px/1 "Newsreader", Georgia, serif; letter-spacing: -.035em; }
 .status-card p, .analysis-copy, .training-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }

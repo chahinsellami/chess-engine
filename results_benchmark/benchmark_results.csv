@@ -1,0 +1,9 @@
+engine,position,test,best_move_uci,best_move_san,passed,validation,completed_depth,score_cp,nodes,qnodes,total_nodes,elapsed_seconds,nodes_per_second,tt_hits,tt_cutoffs,beta_cutoffs
+Classical,Starting position,General search,g1f3,Nf3,True,Legal move returned,4,0,1985,1535,3520,0.513,6866,154,71,467
+Classical,Mate in 1,Checkmate detection,g6g7,Qxg7#,True,Checkmate found,1,99999,8,6,14,0.0008,19787,0,0,0
+Classical,Capture queen,High-value capture,e2e3,Rxe3+,True,Queen captured,4,520,125,92,217,0.0207,10533,15,0,31
+Classical,Pawn promotion,Pawn promotion,a7a8q,a8=Q+,True,Promoted to queen,4,911,362,302,664,0.0565,11796,45,19,91
+Neural Network,Starting position,General search,g1f3,Nf3,True,Legal move returned,4,0,1930,1448,3378,1.1237,3006,203,120,418
+Neural Network,Mate in 1,Checkmate detection,g6g7,Qxg7#,True,Checkmate found,1,99999,8,6,14,0.0032,4577,0,0,0
+Neural Network,Capture queen,High-value capture,e2e3,Rxe3+,True,Queen captured,4,520,125,92,217,0.0192,11359,15,0,31
+Neural Network,Pawn promotion,Pawn promotion,a7a8q,a8=Q+,True,Promoted to queen,4,911,362,302,664,0.0578,11520,45,19,91

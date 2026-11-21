@@ -5,11 +5,15 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ipynb_checkpoints/
+*.log
 
 # Local data and model artifacts
 data/
 models/
+archive/
 checkpoints/
+checkpoints_1m/
+results_1m/
 *.parquet
 *.pkl
 *.pt

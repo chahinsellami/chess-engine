@@ -10,7 +10,7 @@ import torch.nn as nn
 # CONFIGURATION
 # ============================================================
 
-CHECKPOINT_PATH = "checkpoints/best_chess_model.pt"
+CHECKPOINT_PATH = "checkpoints_1m/best_chess_model_1m.pt"
 
 INPUT_CHANNELS = 18
 NUM_CLASSES = 20480
