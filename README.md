@@ -1,167 +1,65 @@
-# Chess Engine - Machine Learning Project
+# Chess Engine
 
-A chess engine built for machine learning research. This repository contains the initial dataset inspection and processing pipeline.
+A chess engine that combines a neural network (trained on 1 million Lichess positions) with alpha-beta search. It has a local web GUI where you can play against it, against Stockfish, or watch engines play each other.
 
 ## Quick Start
 
 ```bash
 python -m venv .venv
-.\\.venv\\Scripts\\Activate.ps1
+.\.venv\Scripts\Activate.ps1      # Linux/Mac: source .venv/bin/activate
 pip install -r requirements.txt
 python gui.py
 ```
 
-Open [http://127.0.0.1:5000](http://127.0.0.1:5000).
+Open [http://127.0.0.1:5000](http://127.0.0.1:5000). Requires Python 3.11+.
 
-## Overview
+## Features
 
-This project explores using machine learning to improve chess engine decision-making. The approach involves:
+- Play as human vs Neural Bot, human vs Stockfish, or engine vs engine
+- Legal-move highlights, move history, undo, promotion choices
+- Live position evaluation
+- **Validation** tab checking PyTorch, checkpoint, dataset, and training metrics
 
-1. **Dataset Collection**: Gathering large volumes of chess games from Lichess API
-2. **Data Processing**: Cleaning and structuring game data for ML training
-3. **Model Training**: Developing neural networks to evaluate positions and suggest moves
-4. **Engine Integration**: Combining ML models with traditional chess evaluation
+Stockfish is optional: place the executable at `engines/stockfish/stockfish19.exe`. Levels 1–8 adjust its skill and search time.
 
-## Setup
+## Model
 
-### Prerequisites
+A residual CNN (4 blocks, 128 channels, 43M parameters) that predicts the next move from a board position.
 
-- Python 3.11+
-- Git
+| Metric | Result |
+|---|---|
+| Training / validation / test positions | 801k / 99k / 100k |
+| Test top-1 accuracy | 33.0% |
+| Test top-5 accuracy | 69.2% |
+| Training time | ~46 min (RTX 5070 Ti) |
 
-### Installation
+Full metrics: [results_1m/final_metrics.json](results_1m/final_metrics.json).
 
-```bash
-# Create virtual environment
-py -3.11 -m venv .venv
-
-# Activate
-# Windows: .\.venv\Scripts\Activate.ps1
-# Linux/Mac: source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### Dependencies
-
-Key packages:
-- `datasets` - Loading and processing large chess datasets
-- `python-chess` - Chess board representation and move parsing
-- `pandas` - Data manipulation and analysis
-- `pyarrow` - Efficient data serialization
-- `tqdm` - Progress bars for long operations
-- `torch` - Building and training machine learning models
-
-## Dataset Inspection
-
-The project includes tools for exploring chess datasets:
-
-### `scripts/inspect_dataset.py`
-
-Explores chess game datasets to understand:
-- Game length distributions
-- Opening patterns
-- Player ratings
-- Move statistics
-
-### `test_tactical_positions.py`
-
-Validates move parsing functionality:
-- SAN (Standard Algebraic Notation) parsing
-- Move legality verification
-- Board state reconstruction
-
-### `scripts/build_dataset.py`
-
-Processes raw chess data into ML-ready format:
-- Fetches games from Lichess API
-- Validates API connectivity
-- Structures data for training pipelines
-
-## Web GUI
-
-The project includes a local web interface for playing against the engine and
-checking the machine-learning setup.
+## Retrain
 
 ```bash
-python gui.py
+python scripts/build_dataset_1m.py   # download games from Lichess
+python prepare_data.py               # build tensors
+python train_1m.py                   # train the model
 ```
 
-Open [http://127.0.0.1:5000](http://127.0.0.1:5000) in a browser. The interface
-includes:
+## Project Layout
 
-- Responsive chess board with legal-move highlights
-- Automatic engine replies using depth-3 search
-- Move history, undo, new game, and pawn promotion choices
-- Live position evaluation and engine status
-- **Validation** tab for PyTorch, checkpoint, dataset, board-rule, and training
-  metric checks
+| Path | Purpose |
+|---|---|
+| `gui.py`, `templates/`, `static/` | Flask web app |
+| `engine.py` | Search and evaluation |
+| `play.py` | Neural-network inference and CLI play |
+| `stockfish_opponent.py` | Stockfish wrapper |
+| `prepare_data.py`, `train_1m.py` | Data prep and training |
+| `scripts/` | Dataset builders and utilities |
+| `checkpoints_1m/`, `results_1m/` | Trained model and metrics |
+| `test_tactical_positions.py`, `test_stockfish.py` | Smoke tests |
 
-### Opponent Modes
+## Credits
 
-The game panel supports:
-
-- **Human vs Neural Bot**
-- **Human vs Stockfish**
-- **Engine vs Engine**, with Neural Bot or Stockfish on either side
-
-Stockfish is loaded from `engines/stockfish/stockfish19.exe`. Levels 1–8 adjust
-Stockfish skill and search time. The executable is not downloaded or modified
-by the application.
-
-## Screenshots
-
-The following screenshots document the dataset inspection and preparation process:
-
-![Dataset Build Pipeline](screenshots/dataset-build.png)
-*Dataset structure and build pipeline output*
-
-![API Connection Test](screenshots/dataset-conection-test.png)
-*API connectivity validation results*
-
-![Parser Test Cases](screenshots/parsetest.png)
-*Move parser test cases and validation*
-
-![Data Preparation Pipeline](screenshots/data-prepare.png)
-*Data preprocessing pipeline for ML training*
-
-## Project Structure
-
-```
-chess-engine/
-├── README.md              # This file
-├── requirements.txt       # Python dependencies
-├── .gitignore             # Local and generated-file ignore rules
-├── gui.py                 # Local Flask web entry point
-├── engine.py              # Chess search and evaluation
-├── play.py                # Neural-network inference and CLI play
-├── prepare_data.py        # 1-million-position tensor preparation
-├── train_1m.py            # 1-million-position model training
-├── test_tactical_positions.py # Chess and engine smoke tests
-├── data/
-│   ├── positions_1m.parquet
-│   └── chess_training_data_1m.npz
-├── checkpoints_1m/
-├── results_1m/            # 1-million-position training metrics
-├── scripts/               # Dataset builders and legacy utilities
-├── templates/             # Flask page markup
-├── static/                # Web UI styles, scripts, and SVG pieces
-├── screenshots/           # Pipeline and app screenshots
-├── docs/                  # Design and project documentation
-└── archive/               # Preserved standard-size experiments
-```
-
-The board uses the open-source Cburnett chess piece artwork from
-[Lichess](https://github.com/lichess-org/lila/tree/master/public/piece/cburnett).
-
-## Next Steps
-
-- Implement chess engine core logic (board representation, move generation)
-- Develop position evaluation functions
-- Integrate ML model training pipeline
-- Add unit tests for engine components
+Piece artwork: [Cburnett set](https://github.com/lichess-org/lila/tree/master/public/piece/cburnett) from Lichess. Games: [Lichess](https://lichess.org) open database.
 
 ## License
 
-MIT License - feel free to use and modify for your own machine learning experiments.
+MIT
